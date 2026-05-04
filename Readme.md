@@ -1,5 +1,6 @@
 # BÁO CÁO BÀI 10 - THE BROKEN PIPELINE
 
+**Sinh viên:** Cao Dương Lễ
 **Link GitHub Repository:** [https://github.com/caoduongle/Bai10-Tuan-9](https://github.com/caoduongle/Bai10-Tuan-9)
 
 ---
@@ -7,50 +8,49 @@
 ## 🚨 Lỗi 1: Máy chủ CI không có mã nguồn (Missing Checkout)
 
 *   **Vị trí lỗi:** File `.github/workflows/ci.yml` (Thiếu step checkout ở dòng 10).
-*   **Log minh chứng:**
+*   **Log minh chứng (Trích xuất từ GitHub Actions):**
     ```text
-    [ERROR] The goal you specified requires a project to execute but there is no POM in this directory (/). Please verify you invoked Maven from the correct directory.
-    Error: Process completed with exit code 1.
+    Error:  The goal you specified requires a project to execute but there is no POM in this directory (/home/runner/work/Bai10-Tuan-9/Bai10-Tuan-9). Please verify you invoked Maven from the correct directory. -> [Help 1]
     ```
 *   **Nguyên nhân kỹ thuật:** Khi GitHub Actions khởi tạo máy ảo `ubuntu-latest` để chạy CI, máy ảo này hoàn toàn trống rỗng. Lệnh `mvn package` chạy ngay lập tức mà không tìm thấy file `pom.xml` nào để thực thi vì mã nguồn chưa được kéo (clone) từ GitHub về máy ảo.
 *   **Cách khắc phục:** Thêm action `actions/checkout@v3` vào đầu danh sách steps để máy ảo tải code về trước khi cài đặt JDK và chạy Maven.
 
 ---
 
-## 🚨 Lỗi 2: Sai phiên bản thư viện (Dependency Resolution Error)
+## 🚨 Lỗi 2 & 3: Sai phiên bản thư viện và Lỗi tương thích Java (Dependency & Surefire Version)
 
-*   **Vị trí lỗi:** File `pom.xml` (Dòng 18-22, thẻ `<version>9.9.9</version>` của thư viện `logback-classic`).
-*   **Log minh chứng:**
-    ```text
-    [ERROR] Failed to execute goal on project shipping-app: Could not resolve dependencies for project com.lab:shipping-app:jar:1.0-SNAPSHOT: Could not find artifact ch.qos.logback:logback-classic:jar:9.9.9 in central ([https://repo.maven.apache.org/maven2](https://repo.maven.apache.org/maven2)) -> [Help 1]
-    ```
-*   **Nguyên nhân kỹ thuật:** File POM đang yêu cầu Maven tải thư viện `logback-classic` phiên bản `9.9.9`. Tuy nhiên, phiên bản ảo này không hề tồn tại trên kho lưu trữ trung tâm Maven Central. Quá trình tải dependency thất bại khiến tiến trình build bị hủy bỏ.
-*   **Cách khắc phục:** Sửa phiên bản `9.9.9` thành một phiên bản hợp lệ và có thực, ví dụ như `1.4.11`.
+*   **Vị trí lỗi:** File `pom.xml`.
+    *   Thư viện `logback-classic` khai báo phiên bản ảo `9.9.9`.
+    *   Plugin `maven-surefire-plugin` dùng phiên bản cũ `2.12.4` không hỗ trợ Java 17.
+*   **Nguyên nhân kỹ thuật:** Thư viện không tồn tại trên Maven Central sẽ khiến quá trình tải dependency thất bại. Ngoài ra, Surefire bản cũ không thể đọc được bytecode major version 61 của Java 17.
+*   **Cách khắc phục:** Cập nhật phiên bản `logback-classic` lên `1.4.11` và `maven-surefire-plugin` lên `3.2.5`. Đồng thời chỉnh Java compiler về target 17 để đồng bộ với CI. *(Ghi chú: Lỗi này được phát hiện và sửa đồng thời trong quá trình cấu trúc lại file POM).*
 
 ---
 
-## 🚨 Lỗi 3: Lỗi tương thích Java (Unsupported Class Version)
+## 🚨 Lỗi Phát sinh thực tế (Unrecognised Tag XML)
 
-*   **Vị trí lỗi:** File `pom.xml` (Dòng 34, thẻ `<version>2.12.4</version>` của `maven-surefire-plugin`).
-*   **Log minh chứng:**
+*   **Vị trí lỗi:** File `pom.xml` (Dòng 29, cấu trúc XML bị lồng sai).
+*   **Log minh chứng (Trích xuất từ GitHub Actions):**
     ```text
-    [ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:2.12.4:test (default-test) on project shipping-app: Execution default-test of goal org.apache.maven.plugins:maven-surefire-plugin:2.12.4:test failed: java.lang.IllegalArgumentException: Unsupported class file major version 61 -> [Help 1]
+    Error: Some problems were encountered while processing the POMs:
+    Error: Malformed POM /home/runner/work/Bai10-Tuan-9/Bai10-Tuan-9/pom.xml: Unrecognised tag: 'build' (position: START_TAG seen ...</dependency>\n<build>... @29:16) @ /home/runner/work/Bai10-Tuan-9/Bai10-Tuan-9/pom.xml, line 29, column 16
     ```
-*   **Nguyên nhân kỹ thuật:** Dự án được biên dịch bằng Java 17 (major version 61). Tuy nhiên, `maven-surefire-plugin` (plugin dùng để chạy Unit Test) đang ở phiên bản quá cũ (`2.12.4`). Phiên bản này không có khả năng đọc và hiểu được cấu trúc bytecode của Java 17, dẫn đến crash khi cố gắng chạy test.
-*   **Cách khắc phục:** Nâng cấp `maven-surefire-plugin` lên phiên bản mới hơn, ví dụ `<version>3.2.5</version>`, để hỗ trợ chuẩn Java 17 và kiến trúc của JUnit 5.
+*   **Nguyên nhân kỹ thuật:** Trong quá trình thiết lập file `pom.xml`, thẻ `<build>` đã bị đặt nhầm vào bên trong thẻ `<dependencies>`. Maven yêu cầu tuân thủ cấu trúc XML nghiêm ngặt, việc lồng sai thẻ khiến Maven không thể phân tích (parse) tệp cấu hình và lập tức dừng tiến trình build.
+*   **Cách khắc phục:** Di chuyển khối `<build>` ra ngoài, đứng ngang hàng và độc lập với khối `<dependencies>`.
 
 ---
 
 ## 🚨 Lỗi 4 (Lỗi tự tạo): Sai logic nghiệp vụ làm hỏng Unit Test
 
-*   **Vị trí tạo lỗi:** File `src/main/java/com/lab/ShippingCalculator.java` (Sửa công thức tính cước gói STANDARD từ `weight * 3000` thành `weight * 4000`).
-*   **Log minh chứng:**
+*   **Vị trí tạo lỗi:** File `src/main/java/com/lab/ShippingCalculator.java` (Cố tình sửa công thức tính cước gói STANDARD làm sai lệch kết quả).
+*   **Log minh chứng (Trích xuất từ GitHub Actions):**
     ```text
-    [ERROR] Failures: 
-    [ERROR]   ShippingCalculatorTest.testStandard:12 expected: <15000.0> but was: <20000.0>
-    [INFO] 
-    [ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0
-    [INFO] BUILD FAILURE
+    Error:  Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.054 s <<< FAILURE! -- in com.lab.ShippingCalculatorTest
+    Error:  com.lab.ShippingCalculatorTest.testStandard -- Time elapsed: 0.003 s <<< FAILURE!
+    org.opentest4j.AssertionFailedError: expected: <15000.0> but was: <20000.0>
+    ...
+    Error:  Failures: 
+    Error:    ShippingCalculatorTest.testStandard:12 expected: <15000.0> but was: <20000.0>
     ```
-*   **Nguyên nhân kỹ thuật:** Mã nguồn xử lý nghiệp vụ đã bị thay đổi làm kết quả đầu ra sai lệch so với kỳ vọng (Assertion) được viết trong file Unit Test `ShippingCalculatorTest.java`. Hệ thống CI phát hiện Test case `testStandard` trả về giá trị `20000.0` thay vì `15000.0`, do đó tự động đánh dấu quy trình Build thất bại (Pipeline đỏ) để ngăn chặn đoạn code lỗi này được triển khai.
-*   **Cách khắc phục:** Trả lại đúng công thức toán học ban đầu `return weight * 3000;` trong file `ShippingCalculator.java` để đảm bảo logic hoạt động chuẩn xác và vượt qua bài test.
+*   **Nguyên nhân kỹ thuật:** Mã nguồn xử lý nghiệp vụ đã bị thay đổi làm kết quả đầu ra trả về `20000.0`, sai lệch so với kỳ vọng `15000.0` (Assertion) được viết chặt chẽ trong file Unit Test `ShippingCalculatorTest.java`. Hệ thống CI đóng vai trò chốt chặn, lập tức đánh dấu quy trình Build thất bại để ngăn chặn việc đưa code sai logic này lên môi trường thực tế.
+*   **Cách khắc phục:** Trả lại đúng công thức toán học ban đầu `return weight * 3000;` trong file `ShippingCalculator.java` để đảm bảo logic hoạt động chuẩn xác và vượt qua bài Unit Test.
