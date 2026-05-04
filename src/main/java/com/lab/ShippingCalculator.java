@@ -7,8 +7,11 @@ public class ShippingCalculator {
             throw new IllegalArgumentException("Weight must be positive");
         }
         if (type.equals("EXPRESS")) return weight * 5000 + 20000;
-        if (type.equals("STANDARD")) return weight * 3000;
+
+        // BƯỚC TẠO LỖI 4: Cố tình sửa hệ số nhân từ 3000 thành 4000
+        // Việc này sẽ làm hỏng kết quả của bài Test, khiến Pipeline báo đỏ
+        if (type.equals("STANDARD")) return weight * 4000;
+
         throw new IllegalArgumentException("Unknown type: " + type);
     }
 }
-
